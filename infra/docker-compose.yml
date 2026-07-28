@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mcp-library-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mcp_library
+      POSTGRES_USER: mcp_library
+      POSTGRES_PASSWORD: change-me-in-local-env
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mcp_library -d mcp_library"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

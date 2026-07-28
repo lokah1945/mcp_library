@@ -1,0 +1,5 @@
+# Replace the project/log paths before installing this as a crontab entry.
+# These jobs check provider metadata and clone HEADs; they do not apply source changes.
+
+0 */6 * * * cd /absolute/path/to/mcp_library && /usr/bin/npm run providers:sync -- --limit 100 >> /var/log/mcp-library-provider-sync.log 2>&1
+15 */6 * * * cd /absolute/path/to/mcp_library && /usr/bin/npm run library:refresh >> /var/log/mcp-library-provider-sync.log 2>&1

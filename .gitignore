@@ -1,0 +1,26 @@
+# Dependencies and build output
+node_modules/
+.next/
+coverage/
+out/
+*.tsbuildinfo
+
+# Local environment files — only .env.example may be committed
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs, OS and editor files
+*.log
+.DS_Store
+.vscode/
+.idea/
+
+# Local library metadata and checked-out provider source (never committed)
+local-library/
+
+# Local database / generated artifacts
+*.sqlite
+*.sqlite-*
+/tmp/

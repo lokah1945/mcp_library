@@ -1,0 +1,13 @@
+{
+  "name": "@mcp-library/worker",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mcp-library/source-adapters": "*",
+    "@mcp-library/config-exporters": "*"
+  }
+}

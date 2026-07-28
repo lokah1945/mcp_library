@@ -1,0 +1,26 @@
+name: Provider metadata watch
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  check-registry:
+    name: Check Official MCP Registry availability
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run audit
+      # Read-only by design: it neither creates clones nor writes commits from a scheduled job.
+      - run: npm run providers:check -- --limit 25
+      - run: npm run providers:sync-glama -- --check
+      - run: npm run library:check-packages

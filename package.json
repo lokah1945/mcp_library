@@ -1,0 +1,55 @@
+{
+  "name": "mcp_library",
+  "version": "0.2.0",
+  "private": true,
+  "description": "A trusted, bilingual MCP server catalog, classifier, and explainable recommendation layer.",
+  "packageManager": "npm@10.8.2",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20.18.0",
+    "npm": ">=10"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace=@mcp-library/web",
+    "build": "npm run typecheck && npm run build --workspace=@mcp-library/web",
+    "start": "npm run start --workspace=@mcp-library/web",
+    "lint": "npm run lint --workspace=@mcp-library/web",
+    "typecheck": "npm run typecheck --workspace=@mcp-library/catalog-schema && npm run typecheck --workspace=@mcp-library/source-adapters && npm run typecheck --workspace=@mcp-library/config-exporters && npm run typecheck --workspace=@mcp-library/web && npm run typecheck --workspace=@mcp-library/worker && tsc --project tsconfig.tests.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "sync:dry-run": "tsx apps/worker/src/index.ts dry-run",
+    "sync:fixtures": "tsx apps/worker/src/index.ts fixtures",
+    "audit": "npm audit --audit-level=high",
+    "worker:help": "tsx apps/worker/src/index.ts help",
+    "providers:sync": "tsx apps/worker/src/index.ts providers:sync",
+    "providers:check": "tsx apps/worker/src/index.ts providers:check",
+    "library:list": "tsx apps/worker/src/index.ts library:list",
+    "library:free": "tsx apps/worker/src/index.ts library:free",
+    "library:enrich": "tsx apps/worker/src/index.ts library:enrich",
+    "library:clone": "tsx apps/worker/src/index.ts library:clone",
+    "library:refresh": "tsx apps/worker/src/index.ts library:refresh",
+    "library:apply": "tsx apps/worker/src/index.ts library:apply",
+    "library:status": "tsx apps/worker/src/index.ts library:status",
+    "library:profiles": "tsx apps/worker/src/index.ts library:profiles",
+    "library:packs": "tsx apps/worker/src/index.ts library:packs",
+    "library:pack": "tsx apps/worker/src/index.ts library:pack",
+    "library:check-packages": "tsx apps/worker/src/index.ts library:check-packages",
+    "providers:sync-glama": "tsx apps/worker/src/index.ts providers:sync-glama",
+    "providers:mcpmarket-status": "tsx apps/worker/src/index.ts providers:mcpmarket-status",
+    "providers:mcpmarket-auth-check": "tsx apps/worker/src/index.ts providers:mcpmarket-auth-check",
+    "providers:import-mcpmarket-sitemaps": "tsx apps/worker/src/index.ts providers:import-mcpmarket-sitemaps"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.57",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  },
+  "overrides": {
+    "postcss": "8.5.23",
+    "sharp": "0.35.0"
+  }
+}
