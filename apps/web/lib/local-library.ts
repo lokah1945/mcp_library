@@ -73,3 +73,161 @@ export async function loadLocalLibrarySnapshot(): Promise<LocalLibrarySnapshot> 
     return { totalCandidates: fallbackCandidates.length, sourceCounts: { "provider-repository": fallbackCandidates.length }, candidates: fallbackCandidates };
   }
 }
+
+import { catalogServers, type CatalogServer, type CategorySlug, type LocalizedText, type RiskLevel, type VerificationState } from "./catalog";
+
+export function candidateToCatalogServer(candidate: LocalLibraryCandidate): CatalogServer {
+  const slug = candidate.canonicalName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const summary: LocalizedText = {
+    en: candidate.description || `${candidate.title} MCP Server.`,
+    id: candidate.description || `Server MCP ${candidate.title}.`
+  };
+
+  const sourceName = candidate.source === "official-registry"
+    ? "Official Registry"
+    : candidate.source === "glama"
+      ? "Glama Directory"
+      : candidate.source === "mcpmarket"
+        ? "MCPMarket"
+        : "Provider Repository";
+
+  const verification: VerificationState = candidate.freeStatus === "verified-open-source"
+    ? "Verified"
+    : candidate.freeStatus === "source-available-unverified"
+      ? "Needs review"
+      : "Imported";
+
+  const risk: RiskLevel = candidate.freeStatus === "verified-open-source" ? "Low" : "Moderate";
+
+  const publisher = candidate.canonicalName.includes("/")
+    ? candidate.canonicalName.split("/")[0]!
+    : candidate.source === "official-registry"
+      ? "Official"
+      : "Community";
+
+  const matchedCategories: CategorySlug[] = [];
+  const lowercaseTags = (candidate.tags || []).map(t => t.toLowerCase());
+  const lowercaseDesc = (candidate.description || "").toLowerCase();
+
+  if (lowercaseTags.some(t => t.includes("git") || t.includes("github") || t.includes("version") || t.includes("pr") || t.includes("issue")) || lowercaseDesc.includes("github") || lowercaseDesc.includes("git ")) {
+    matchedCategories.push("version-control");
+  }
+  if (lowercaseTags.some(t => t.includes("browser") || t.includes("playwright") || t.includes("puppeteer") || t.includes("web") || t.includes("selenium")) || lowercaseDesc.includes("browser") || lowercaseDesc.includes("playwright")) {
+    matchedCategories.push("browser-automation");
+  }
+  if (lowercaseTags.some(t => t.includes("db") || t.includes("database") || t.includes("sql") || t.includes("postgres") || t.includes("mysql") || t.includes("redis") || t.includes("sqlite")) || lowercaseDesc.includes("database") || lowercaseDesc.includes("postgres") || lowercaseDesc.includes("sql")) {
+    matchedCategories.push("databases-data-platforms");
+  }
+  if (lowercaseTags.some(t => t.includes("cloud") || t.includes("devops") || t.includes("docker") || t.includes("aws") || t.includes("kubernetes") || t.includes("deploy")) || lowercaseDesc.includes("cloud") || lowercaseDesc.includes("devops") || lowercaseDesc.includes("docker")) {
+    matchedCategories.push("cloud-devops");
+  }
+  if (lowercaseTags.some(t => t.includes("test") || t.includes("qa") || t.includes("jest") || t.includes("playwright") || t.includes("cypress")) || lowercaseDesc.includes("testing") || lowercaseDesc.includes(" qa ")) {
+    matchedCategories.push("testing-qa");
+  }
+  if (lowercaseTags.some(t => t.includes("observe") || t.includes("monitor") || t.includes("sentry") || t.includes("log") || t.includes("trace") || t.includes("telemetry")) || lowercaseDesc.includes("monitor") || lowercaseDesc.includes("sentry")) {
+    matchedCategories.push("observability-monitoring");
+  }
+  if (lowercaseTags.some(t => t.includes("security") || t.includes("identity") || t.includes("auth") || t.includes("crypt") || t.includes("secret")) || lowercaseDesc.includes("security") || lowercaseDesc.includes("auth")) {
+    matchedCategories.push("security-identity-cryptography");
+  }
+
+  if (matchedCategories.length === 0) {
+    matchedCategories.push("developer-tools");
+  }
+
+  const officialStatus = candidate.officialStatus === "official"
+    ? "Official"
+    : candidate.officialStatus === "claimed"
+      ? "Claimed"
+      : "Community";
+
+  const lifecycle = candidate.lifecycle === "active"
+    ? "Active"
+    : candidate.lifecycle === "deprecated"
+      ? "Deprecated"
+      : "Needs review";
+
+  const permissionTags: LocalizedText[] = [];
+  if (matchedCategories.includes("browser-automation")) {
+    permissionTags.push({ en: "Browser control", id: "Kontrol browser" });
+    permissionTags.push({ en: "Network egress through visited pages", id: "Akses jaringan melalui halaman yang dikunjungi" });
+  }
+  if (matchedCategories.includes("databases-data-platforms")) {
+    permissionTags.push({ en: "Sensitive data access", id: "Akses data sensitif" });
+    permissionTags.push({ en: "Potential write or destructive SQL if role permits it", id: "Potensi SQL tulis atau destruktif bila role mengizinkannya" });
+  }
+  if (matchedCategories.includes("version-control")) {
+    permissionTags.push({ en: "Can read repository data", id: "Dapat membaca data repositori" });
+    permissionTags.push({ en: "May create or modify issues and PRs when granted write scopes", id: "Dapat membuat atau mengubah issue dan PR bila diberi scope tulis" });
+  }
+  if (permissionTags.length === 0) {
+    permissionTags.push({ en: "No high-risk permission tags identified", id: "Tidak ada tag izin berisiko tinggi yang teridentifikasi" });
+  }
+
+  return {
+    slug,
+    name: candidate.title,
+    summary,
+    description: summary,
+    categories: matchedCategories,
+    tags: candidate.tags.length ? candidate.tags : ["mcp"],
+    publisher: publisher.toUpperCase(),
+    officialStatus,
+    verification,
+    lifecycle,
+    execution: "Local",
+    transports: ["stdio"],
+    implementation: candidate.tags.includes("python") ? "Python" : "TypeScript",
+    license: candidate.licenseSpdx || "Verify with provider",
+    auth: { en: "Verify credential needs with provider", id: "Verifikasi kebutuhan kredensial dengan provider" },
+    credentialVariables: [],
+    risk,
+    permissionTags,
+    compatibility: ["Claude Desktop", "Cursor", "VS Code clients"],
+    repositoryUrl: candidate.repositoryUrl || candidate.sourceUrl,
+    documentationUrl: candidate.repositoryUrl || candidate.sourceUrl,
+    sourceName,
+    sourceUrl: candidate.sourceUrl,
+    observedAt: candidate.updatedAt || new Date().toISOString(),
+    setup: {
+      packageName: candidate.canonicalName,
+      command: "npx",
+      args: ["-y", candidate.canonicalName]
+    },
+    useCases: [
+      { en: `Automate tasks using ${candidate.title}`, id: `Otomatisasi tugas menggunakan ${candidate.title}` }
+    ],
+    alternatives: []
+  };
+}
+
+export async function getCombinedServers(): Promise<CatalogServer[]> {
+  try {
+    const snapshot = await loadLocalLibrarySnapshot();
+    const mapped = (snapshot.candidates || []).map(candidateToCatalogServer);
+    
+    const combined = [...catalogServers];
+    const existingSlugs = new Set(combined.map(s => s.slug));
+    
+    for (const server of mapped) {
+      if (!existingSlugs.has(server.slug)) {
+        combined.push(server);
+        existingSlugs.add(server.slug);
+      }
+    }
+    return combined;
+  } catch (error) {
+    console.error("Failed to load combined servers:", error);
+    return catalogServers;
+  }
+}
+
+export async function findServerDynamic(slug: string): Promise<CatalogServer | undefined> {
+  const combined = await getCombinedServers();
+  return combined.find((server) => server.slug === slug);
+}
+
+export async function findServersDynamic(slugs: string[]): Promise<CatalogServer[]> {
+  const combined = await getCombinedServers();
+  return slugs.map(slug => combined.find(s => s.slug === slug)).filter((server): server is CatalogServer => Boolean(server));
+}

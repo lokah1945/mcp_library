@@ -1,5 +1,7 @@
 import { HomePage } from "../components/home-page";
+import { getCombinedServers } from "../lib/local-library";
 
-export default function Page() {
-  return <HomePage />;
+export default async function Page() {
+  const servers = await getCombinedServers();
+  return <HomePage initialServers={servers} />;
 }
