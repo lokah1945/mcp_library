@@ -16,6 +16,7 @@ import {
   type OfficialRegistryPage
 } from "@mcp-library/source-adapters";
 import { curatedFreeSeeds } from "./lib/free-seeds";
+import { API_KEY_FILE_NAME, PROVIDER_API_KEY_VARIABLES, loadProviderApiKeys, providerApiKeyStatus, type ApiKeyLoadReport } from "./lib/api-keys";
 import { has, parseArgs, positiveNumber, required, value, type ParsedArgs } from "./lib/cli-args";
 import {
   candidateFromGlama,
@@ -49,8 +50,15 @@ mcp_library provider and local-clone commands
 
   npm run providers:sync-glama [--first 100] [--all] [--max-pages N] [--resume] [--check]
       Ingests Glama's documented MCP API with cursor pagination. The API has required a key since
-      2026-08-26: export GLAMA_API_KEY from your local secret environment first (never as a CLI argument).
+      2026-08-26: put the key in the Git-ignored library.api.key at the project root, or export
+      GLAMA_API_KEY from your local secret environment first (never as a CLI argument).
       Default fetches one API page; --all follows every page and should run on persistent storage.
+
+  npm run providers:keys
+      Lists every MCP provider this project consumes, whether its API key is required or optional,
+      and where the key is configured. Presence only: no credential value is ever printed.
+      Provider keys are centralized in the Git-ignored library.api.key at the project root
+      (copy the committed library.api.key.example to get started).
 
   npm run providers:sync-glama -- --directory-url <public-directory-url> [--check]
       Compatibility mode: ingests public JSON-LD from a Glama directory page.
@@ -99,6 +107,9 @@ mcp_library provider and local-clone commands
       Checks public npm releases for pinned pack packages without changing pinned versions or installing anything.
 
 State location defaults to ./local-library and can be changed with MCP_LIBRARY_HOME.
+Provider API keys are centralized in ./library.api.key at the project root (Git-ignored;
+copy library.api.key.example to create it). Only a fixed allowlist of provider variables is
+read from it, existing environment variables take precedence, and values are never logged.
 `);
 }
 
@@ -170,11 +181,13 @@ async function syncOfficialRegistry(args: ParsedArgs, checkOnly: boolean): Promi
 }
 
 async function fetchGlamaApiPage(first: number, after?: string): Promise<ReturnType<typeof parseGlamaApiPage>> {
-  const url = new URL("https://glama.ai/api/mcp/v1/servers");
+  const base = (process.env.GLAMA_API_BASE_URL || "https://glama.ai/api/mcp/v1").replace(/\/+$/, "");
+  const url = new URL(`${base}/servers`);
   url.searchParams.set("first", String(first));
   if (after) url.searchParams.set("after", after);
   // Glama closed unauthenticated access to its documented MCP API on 2026-08-26.
-  // A key is sent only from the process environment and is never logged or persisted.
+  // A key is sent only from the process environment or the Git-ignored library.api.key
+  // at the project root, and is never logged or persisted.
   const apiKey = process.env.GLAMA_API_KEY;
   const response = await fetch(url, {
     headers: {
@@ -186,8 +199,9 @@ async function fetchGlamaApiPage(first: number, after?: string): Promise<ReturnT
   if (response.status === 401) {
     throw new Error(
       "Glama MCP API request failed (401 Unauthorized). Glama requires an API key for its documented MCP API since 2026-08-26. " +
-      "Create a key at https://glama.ai/settings/api-keys, store it in a local secret manager, and export it as GLAMA_API_KEY (never pass it as a CLI argument). " +
-      "The key value is never logged. API data use is governed by Glama's API Data License, which requires visible attribution and links to Glama listings when the data is displayed."
+      "Create a key at https://glama.ai/settings/api-keys and put it in the Git-ignored library.api.key at the project root " +
+      "(GLAMA_API_KEY=...; copy library.api.key.example to create the file), or export GLAMA_API_KEY from a local secret manager. " +
+      "The key is never passed as a CLI argument and is never logged. API data use is governed by Glama's API Data License, which requires visible attribution and links to Glama listings when the data is displayed."
     );
   }
   if (!response.ok) throw new Error(`Glama MCP API request failed (${response.status} ${response.statusText}).`);
@@ -277,7 +291,7 @@ function mcpMarketStatus(): void {
 
 async function mcpMarketAuthCheck(): Promise<void> {
   const token = process.env.MCPMARKET_API_KEY;
-  if (!token) throw new Error("MCPMARKET_API_KEY is not set in the process environment. Set it locally or in a secret manager; do not pass it as a CLI argument.");
+  if (!token) throw new Error("MCPMARKET_API_KEY is not configured. Put it in the Git-ignored library.api.key at the project root (MCPMARKET_API_KEY=...; copy library.api.key.example to create the file), set it in a local secret manager, or export it in the environment. Do not pass it as a CLI argument.");
   const base = (process.env.MCPMARKET_API_BASE_URL || "https://app.mcpmarket.com/api/v1").replace(/\/+$/, "");
   const response = await fetch(`${base}/me`, {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json", "User-Agent": "mcp-library-auth-check/0.1" }
@@ -401,6 +415,16 @@ async function checkPackPackages(): Promise<void> {
   console.log("Package check does not alter pinned profile versions or install any package.");
 }
 
+function showProviderKeys(report: ApiKeyLoadReport): void {
+  if (report.ignoredUnknownVariables.length) {
+    console.warn(`Note: library.api.key contains non-provider variable(s) that were ignored: ${report.ignoredUnknownVariables.join(", ")}. Only ${PROVIDER_API_KEY_VARIABLES.join(", ")} are read from it; set application secrets in .env instead.`);
+  }
+  console.table(providerApiKeyStatus(report));
+  console.log(`Provider API keys are centralized in ${API_KEY_FILE_NAME} at the project root (${report.file}). The file is Git-ignored; copy ${API_KEY_FILE_NAME}.example to create it.`);
+  console.log(`Key file present: ${report.fileExists ? "yes" : "no"}. Variables applied from the file: ${report.appliedFromFile.length ? report.appliedFromFile.join(", ") : "none"}. Variables kept from the environment: ${report.retainedFromEnvironment.length ? report.retainedFromEnvironment.join(", ") : "none"}.`);
+  console.log("Presence only: no credential value was read into output, and no network request was made.");
+}
+
 function runFixtures(): void {
   const fixture = `\n### 🛠️ Developer Tools\n- [example-org/github-mcp](https://github.com/example-org/github-mcp) 📇 ☁️ - Example GitHub workflow tools.\n- [example-org/browser-mcp](https://github.com/example-org/browser-mcp) 📇 🏠 - Example browser automation.\n\n### 🗄️ Databases\n- [example-org/postgres-mcp](https://github.com/example-org/postgres-mcp) 🐍 🏠 - Example database access.\n`;
   const records = normalizeAwesomeMarkdown(fixture, new Date("2026-07-28T00:00:00.000Z"));
@@ -413,7 +437,11 @@ async function main(): Promise<void> {
   const command = args.positional[0] ?? "help";
   if (command === "help" || command === "--help" || command === "-h") { printHelp(); return; }
   if (command === "dry-run") { console.log("mcp_library worker: dry-run only\nNo network request, credential access, database write, source scraping, clone, install, or execution was performed."); return; }
+  // Centralized provider API keys: load library.api.key from the project root once before
+  // any working command runs. Allowlisted variables only; the environment always wins; no values are logged.
+  const apiKeyReport = loadProviderApiKeys();
   if (command === "fixtures") { runFixtures(); return; }
+  if (command === "providers:keys") { showProviderKeys(apiKeyReport); return; }
   if (command === "providers:sync") { await syncOfficialRegistry(args, false); return; }
   if (command === "providers:check") { await syncOfficialRegistry(args, true); return; }
   if (command === "providers:sync-glama") { await syncGlama(args); return; }

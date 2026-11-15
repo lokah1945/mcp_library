@@ -11,7 +11,7 @@
 - ✅ Bilingual Next.js catalog: browse, search/filter preview, profile, compare, methodology, and local-library views.
 - ✅ Official MCP Registry adapter with cursor-ready metadata normalization.
 - ✅ Glama MCP API traversal with key-authenticated access: 61,417 source records fetched across 615 pages in the last completed run (28 July 2026, while the API was still public).
-- ⚠️ Glama closed unauthenticated API access on 2026-08-26. `providers:sync-glama` now requires `GLAMA_API_KEY` from the process environment (see `.env.example`).
+- ⚠️ Glama closed unauthenticated API access on 2026-08-26. `providers:sync-glama` now requires `GLAMA_API_KEY`, centralized in the Git-ignored root `library.api.key` or the process environment (see `.env.example` and `library.api.key.example`).
 - ✅ Local library snapshot contained **61,522 unique candidates** at the last completed run: 61,417 Glama, 101 Official Registry, and 4 curated provider records.
 - ✅ Curated free-ready packs for Web & Research, Thinking & Memory, and Developer workflows.
 - ✅ Local source clones tracked for GitHub MCP Server, Playwright MCP, and Context7.
@@ -27,9 +27,9 @@
 | Source | Mode | Latest validated result | Credential required |
 |---|---|---:|---|
 | [Official MCP Registry](https://registry.modelcontextprotocol.io/) | Public REST metadata sync | 101 local records | No |
-| [Glama](https://glama.ai/mcp/servers) | Documented REST API (`Authorization: Bearer`); key required since 2026-08-26 | 61,417 records / 615 pages (last completed run, 28 July 2026) | Yes — `GLAMA_API_KEY` (process environment only) |
-| Provider-owned repositories | Curated source + GitHub enrichment / local clone tracking | 4 catalog records, 3 clones | No for public metadata |
-| [MCPMarket](https://mcpmarket.com/) | Public sitemap importer | Awaiting provider-approved sitemap export/import | No for sitemap import |
+| [Glama](https://glama.ai/mcp/servers) | Documented REST API (`Authorization: Bearer`); key required since 2026-08-26 | 61,417 records / 615 pages (last completed run, 28 July 2026) | Yes — `GLAMA_API_KEY` (root `library.api.key` or environment) |
+| Provider-owned repositories | Curated source + GitHub enrichment / local clone tracking | 4 catalog records, 3 clones | No for public metadata; optional `GITHUB_TOKEN` for quota |
+| [MCPMarket](https://mcpmarket.com/) | Public sitemap importer | Awaiting provider-approved sitemap export/import | No for sitemap import; optional `MCPMARKET_API_KEY` for `/me` auth check |
 
 Glama API data is governed by Glama's API Data License: visible attribution to Glama and links to each record's Glama listing are required wherever that data is displayed.
 
@@ -73,6 +73,23 @@ local-library/           Git-ignored source snapshots, local clones, and generat
 
 ## Catalog and provider commands
 
+### Centralized provider API keys — `library.api.key`
+
+Every MCP provider credential this worker needs is centralized in one Git-ignored file at the project root:
+
+```bash
+# 1. Create the file from the committed template (once)
+cp library.api.key.example library.api.key
+
+# 2. Fill in the keys you need: GLAMA_API_KEY (required), MCPMARKET_API_KEY
+#    and GITHUB_TOKEN (optional), and the optional base-URL overrides
+
+# 3. Check what is configured — presence only, values are never printed
+npm run providers:keys
+```
+
+All `providers:*` and `library:*` commands read `library.api.key` automatically at startup. The loader applies a fixed allowlist of provider variables only (`GLAMA_API_KEY`, `GLAMA_API_BASE_URL`, `MCPMARKET_API_KEY`, `MCPMARKET_API_BASE_URL`, `GITHUB_TOKEN`), variables already present in the environment always take precedence, and no value is ever logged, printed, or persisted. Keyless providers (Official MCP Registry, Awesome MCP Servers, and the MCPMarket sitemap importer) need nothing. Application secrets (`DATABASE_URL`, `AUTH_SECRET`, `EMBEDDING_API_KEY`) belong in `.env`, not in `library.api.key`.
+
 ### Official MCP Registry
 
 ```bash
@@ -85,21 +102,23 @@ npm run providers:check -- --search playwright --limit 20
 
 ### Glama — documented MCP API (key required)
 
-Glama closed unauthenticated access to its documented MCP API on 2026-08-26. Create an API key at <https://glama.ai/settings/api-keys>, keep it in a local secret manager, and export it as `GLAMA_API_KEY` before syncing. The key is read only from the process environment, is never passed as a CLI argument, and is never logged.
+Glama closed unauthenticated access to its documented MCP API on 2026-08-26. Create an API key at <https://glama.ai/settings/api-keys> and put it in the Git-ignored `library.api.key` at the project root (`GLAMA_API_KEY=...`; copy `library.api.key.example` to create the file), or export `GLAMA_API_KEY` from a local secret manager. The key is never passed as a CLI argument and is never logged.
 
 ```bash
 # Read-only one-page check (100 records)
-GLAMA_API_KEY=... npm run providers:sync-glama -- --check --first 100
+npm run providers:sync-glama -- --check --first 100
 
 # Persist one bounded page
-GLAMA_API_KEY=... npm run providers:sync-glama -- --first 100
+npm run providers:sync-glama -- --first 100
 
 # Full API traversal; use persistent storage in production
-GLAMA_API_KEY=... npm run providers:sync-glama -- --all --first 100
+npm run providers:sync-glama -- --all --first 100
 
 # Resume from the persisted Glama cursor in bounded batches
-GLAMA_API_KEY=... npm run providers:sync-glama -- --resume --all --max-pages 25
+npm run providers:sync-glama -- --resume --all --max-pages 25
 ```
+
+The environment alternative remains supported for CI (the `provider-watch` workflow uses the `GLAMA_API_KEY` repository secret): `GLAMA_API_KEY=... npm run providers:sync-glama -- --check --first 100`.
 
 The public JSON-LD directory mode (`--directory-url`) remains available without a key for pages that still embed it.
 
@@ -167,7 +186,7 @@ Generated files remain under `local-library/` and contain no literal credentials
 
 ## Safety model
 
-- No `.env`, clone, source snapshot, generated profile, or credential is committed to Git.
+- No `.env`, `library.api.key`, clone, source snapshot, generated profile, or credential is committed to Git.
 - A token shared in chat, a URL, a screenshot, an issue, or a commit is considered exposed and must be revoked/rotated.
 - Third-party MCP entries are discovery data, **not** proof they are safe, free, current, or runnable.
 - Clone acquisition never installs dependencies, runs package scripts, starts a server, checks out submodules, or runs Git hooks.

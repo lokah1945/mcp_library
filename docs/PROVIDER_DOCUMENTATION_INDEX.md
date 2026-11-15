@@ -37,11 +37,11 @@ This index records the official documentation needed to integrate, validate, con
 
 ### Integration status
 
-**Enabled, public metadata only.** The current worker uses the public Glama MCP API with `first` page size plus `pageInfo.endCursor` cursor pagination. The directory JSON-LD parser remains a compatibility mode for an explicitly supplied public page. No Glama API key is required or used for the current sync.
+**Enabled, key-authenticated metadata only.** The worker uses the documented Glama MCP API with `first` page size plus `pageInfo.endCursor` cursor pagination, sending `Authorization: Bearer` with `GLAMA_API_KEY`. Glama closed unauthenticated API access on 2026-08-26, so the key is required for API sync; the directory JSON-LD parser remains a keyless compatibility mode for an explicitly supplied public page.
 
 ### Key policy
 
-`GLAMA_API_KEY` and `GLAMA_API_BASE_URL` are reserved only for a future documented authenticated integration. The default public endpoint is `https://glama.ai/api/mcp/v1`; no secret belongs in Git, logs, profiles, or chat.
+`GLAMA_API_KEY` is required for API sync (create at <https://glama.ai/settings/api-keys>) and is centralized in the Git-ignored `library.api.key` at the project root or supplied via the process environment (CI secret). `GLAMA_API_BASE_URL` optionally overrides the default endpoint `https://glama.ai/api/mcp/v1`. No secret belongs in Git, logs, profiles, or chat.
 
 ---
 
@@ -66,7 +66,7 @@ This index records the official documentation needed to integrate, validate, con
 
 MCPMarket's public `robots.txt` publishes `https://mcpmarket.com/sitemap.xml`, which links to `tools-N.xml` server sitemap files. `mcp_library` includes `providers:import-mcpmarket-sitemaps`, a custom importer for sitemap files downloaded via an approved browser/export path. It imports public server URLs and `lastmod` metadata only; it does not bypass security controls or scrape detail pages.
 
-The project exposes `npm run providers:mcpmarket-auth-check`, which sends one read-only `GET /me` request only when `MCPMARKET_API_KEY` is already present in the process environment; it logs neither the token nor response values.
+The project exposes `npm run providers:mcpmarket-auth-check`, which sends one read-only `GET /me` request only when `MCPMARKET_API_KEY` is already configured (Git-ignored `library.api.key` at the project root or the process environment); it logs neither the token nor response values.
 
 Direct automated fetches of the public homepage receive a Vercel Security Checkpoint. `mcp_library` will not bypass that control, a login wall, or a browser challenge. Full per-server enrichment needs an official bulk API/export, or a provider-approved detail contract with pagination, fields, rate limits, and permission semantics.
 

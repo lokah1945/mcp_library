@@ -5,6 +5,7 @@
 `mcp_library` must never contain a real credential in source code, fixtures, documentation, issue text, configuration exports, logs, or Git history.
 
 - `.env` is ignored; only `.env.example` with empty placeholders may be committed.
+- `library.api.key` (project root) centralizes provider API keys locally: it is Git-ignored, and only `library.api.key.example` with empty placeholders may be committed. The worker reads a fixed allowlist of provider variables from it (`GLAMA_API_KEY`, `GLAMA_API_BASE_URL`, `MCPMARKET_API_KEY`, `MCPMARKET_API_BASE_URL`, `GITHUB_TOKEN`), the process environment always takes precedence over the file, and no value is ever logged, printed, or persisted — `npm run providers:keys` reports presence only.
 - Treat any credential shared through chat, a URL, a screenshot, an issue, or a commit as exposed. Revoke it and create a new minimum-scope credential before use.
 - Store deployment secrets in the selected platform's secret manager. The catalog application does not need to persist provider credentials.
 - Configuration exports may contain `${ENV_VAR}` placeholders only.

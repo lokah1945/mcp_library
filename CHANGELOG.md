@@ -2,6 +2,19 @@
 
 All notable project changes are documented here.
 
+## Unreleased
+
+### Added
+
+- Centralized provider API keys in the Git-ignored `library.api.key` at the project root. Every worker command loads it automatically at startup; only a fixed allowlist of provider variables is read from it (`GLAMA_API_KEY`, `GLAMA_API_BASE_URL`, `MCPMARKET_API_KEY`, `MCPMARKET_API_BASE_URL`, `GITHUB_TOKEN`), variables already present in the process environment always take precedence, unknown variables are reported and ignored, and no credential value is ever logged, printed, or persisted. The committed `library.api.key.example` template documents each provider's key requirement, where to create the key, and which commands consume it.
+- New `npm run providers:keys` command: lists every MCP provider consumed by the project (Official MCP Registry, Glama, MCPMarket, GitHub enrichment, Awesome MCP Servers), whether its key is required or optional, and whether it is configured via `library.api.key` or the environment — presence only, no network request, no values.
+- `providers:sync-glama` now honors the documented `GLAMA_API_BASE_URL` override (default `https://glama.ai/api/mcp/v1`), matching `.env.example`.
+
+### Changed
+
+- Glama 401 guidance and the MCPMarket missing-token error now point to `library.api.key` (or the environment) instead of only environment export; `worker:help` documents the centralized key file and the new command.
+- README, SECURITY.md, `.env.example`, the provider documentation index, and the cron template now document the centralized key file and its precedence rules.
+
 ## 0.2.1 — 15 November 2026
 
 ### Security

@@ -11,6 +11,9 @@ out/
 .env.*.local
 !.env.example
 
+# Centralized local provider API keys — only the .example template may be committed
+/library.api.key
+
 # Logs, OS and editor files
 *.log
 .DS_Store

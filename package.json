@@ -39,6 +39,7 @@
     "library:check-packages": "tsx apps/worker/src/index.ts library:check-packages",
     "providers:sync-glama": "tsx apps/worker/src/index.ts providers:sync-glama",
     "providers:mcpmarket-status": "tsx apps/worker/src/index.ts providers:mcpmarket-status",
+    "providers:keys": "tsx apps/worker/src/index.ts providers:keys",
     "providers:mcpmarket-auth-check": "tsx apps/worker/src/index.ts providers:mcpmarket-auth-check",
     "providers:import-mcpmarket-sitemaps": "tsx apps/worker/src/index.ts providers:import-mcpmarket-sitemaps"
   },
