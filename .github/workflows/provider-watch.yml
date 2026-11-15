@@ -22,5 +22,14 @@ jobs:
       - run: npm run audit
       # Read-only by design: it neither creates clones nor writes commits from a scheduled job.
       - run: npm run providers:check -- --limit 25
-      - run: npm run providers:sync-glama -- --check
+      # Glama's documented MCP API has required a key since 2026-08-26. The check runs only
+      # when the repository secret GLAMA_API_KEY is configured; the key is never printed.
+      - name: Check Glama MCP API (requires GLAMA_API_KEY secret)
+        if: ${{ secrets.GLAMA_API_KEY != '' }}
+        env:
+          GLAMA_API_KEY: ${{ secrets.GLAMA_API_KEY }}
+        run: npm run providers:sync-glama -- --check --first 10
+      - name: Report skipped Glama check
+        if: ${{ secrets.GLAMA_API_KEY == '' }}
+        run: echo "GLAMA_API_KEY secret is not configured; skipping the Glama API check (the API has required a key since 2026-08-26)."
       - run: npm run library:check-packages

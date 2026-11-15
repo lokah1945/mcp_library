@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { availablePackageProfiles, exportFreePackProfile, exportLocalProfile, freePacks, type FreePackName, type LocalProfileClient, type ProfileServer } from "@mcp-library/config-exporters";
@@ -15,6 +16,7 @@ import {
   type OfficialRegistryPage
 } from "@mcp-library/source-adapters";
 import { curatedFreeSeeds } from "./lib/free-seeds";
+import { has, parseArgs, positiveNumber, required, value, type ParsedArgs } from "./lib/cli-args";
 import {
   candidateFromGlama,
   candidateFromMcpMarket,
@@ -34,54 +36,6 @@ import {
   type LibraryCandidate
 } from "./lib/local-library";
 
-type ParsedArgs = { positional: string[]; flags: Map<string, string | true> };
-
-function parseArgs(args: string[]): ParsedArgs {
-  const positional: string[] = [];
-  const flags = new Map<string, string | true>();
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
-    if (!arg?.startsWith("--")) { if (arg) positional.push(arg); continue; }
-    const [rawKey, inlineValue] = arg.slice(2).split("=", 2);
-    if (!rawKey) continue;
-    if (inlineValue !== undefined) { flags.set(rawKey, inlineValue); continue; }
-    const next = args[index + 1];
-    if (next && !next.startsWith("--")) { flags.set(rawKey, next); index += 1; }
-    else flags.set(rawKey, true);
-  }
-  return { positional, flags };
-}
-
-function has(args: ParsedArgs, key: string): boolean { return args.flags.has(key); }
-function value(args: ParsedArgs, key: string): string | undefined {
-  const result = args.flags.get(key);
-  return typeof result === "string" ? result : undefined;
-}
-function required(args: ParsedArgs, key: string): string {
-  const result = value(args, key);
-  if (!result) throw new Error(`Missing --${key}.`);
-  return result;
-}
-function positiveNumber(args: ParsedArgs, key: string, fallback: number, maximum: number): number {
-  const input = value(args, key);
-  if (!input) return fallback;
-  const number = Number.parseInt(input, 10);
-  if (!Number.isFinite(number) || number < 1) throw new Error(`--${key} must be a positive number.`);
-  return Math.min(number, maximum);
-}
-
-function compact(candidate: LibraryCandidate): Record<string, unknown> {
-  return {
-    server: candidate.canonicalName,
-    title: candidate.title,
-    free: candidate.freeStatus,
-    licence: candidate.licenseSpdx ?? "unverified",
-    clone: candidate.cloneEligible ? "eligible" : "blocked",
-    source: candidate.source,
-    repository: candidate.repositoryUrl ?? "remote-only"
-  };
-}
-
 function printHelp(): void {
   console.log(`
 mcp_library provider and local-clone commands
@@ -94,7 +48,8 @@ mcp_library provider and local-clone commands
       Performs a read-only registry health/discovery check without persisting a snapshot.
 
   npm run providers:sync-glama [--first 100] [--all] [--max-pages N] [--resume] [--check]
-      Ingests Glama's public MCP API with cursor pagination. No API key is used.
+      Ingests Glama's documented MCP API with cursor pagination. The API has required a key since
+      2026-08-26: export GLAMA_API_KEY from your local secret environment first (never as a CLI argument).
       Default fetches one API page; --all follows every page and should run on persistent storage.
 
   npm run providers:sync-glama -- --directory-url <public-directory-url> [--check]
@@ -107,9 +62,10 @@ mcp_library provider and local-clone commands
       Makes one read-only GET /me request using MCPMARKET_API_KEY from the process environment.
       It prints only HTTP success/schema keys, never the key or response values.
 
-  npm run providers:import-mcpmarket-sitemaps -- --dir <directory>
+  npm run providers:import-mcpmarket-sitemaps -- --dir <directory> [--check]
       Imports official MCPMarket tools sitemap XML files downloaded via an approved browser/export path.
       This discovers all public server URLs and lastmod data without API guessing or security-checkpoint bypass.
+      --check parses and reports the files without persisting a snapshot.
 
   npm run library:list [--limit 50] [--query term]
   npm run library:free [--limit 50] [--query term]
@@ -130,8 +86,32 @@ mcp_library provider and local-clone commands
   npm run library:status
       Shows local clone manifests and update state.
 
+  npm run library:packs
+      Lists the curated free-ready pack definitions and their risk notes.
+
+  npm run library:pack -- --name <free-web-research|free-thinking-memory|free-developer>
+      Writes credential-free pack templates for Claude Desktop, Cursor, and VS Code under local-library/packs.
+
+  npm run library:profiles [-- --servers github,playwright,context7]
+      Writes credential-free client profile templates for Claude Desktop, Cursor, and VS Code.
+
+  npm run library:check-packages
+      Checks public npm releases for pinned pack packages without changing pinned versions or installing anything.
+
 State location defaults to ./local-library and can be changed with MCP_LIBRARY_HOME.
 `);
+}
+
+function compact(candidate: LibraryCandidate): Record<string, unknown> {
+  return {
+    server: candidate.canonicalName,
+    title: candidate.title,
+    free: candidate.freeStatus,
+    licence: candidate.licenseSpdx ?? "unverified",
+    clone: candidate.cloneEligible ? "eligible" : "blocked",
+    source: candidate.source,
+    repository: candidate.repositoryUrl ?? "remote-only"
+  };
 }
 
 async function fetchOfficialRegistryPage(input: { limit: number; cursor?: string; search?: string; updatedSince?: string }): Promise<OfficialRegistryPage> {
@@ -193,8 +173,24 @@ async function fetchGlamaApiPage(first: number, after?: string): Promise<ReturnT
   const url = new URL("https://glama.ai/api/mcp/v1/servers");
   url.searchParams.set("first", String(first));
   if (after) url.searchParams.set("after", after);
-  const response = await fetch(url, { headers: { Accept: "application/json", "User-Agent": "mcp-library-provider-sync/0.1" } });
-  if (!response.ok) throw new Error(`Glama public MCP API request failed (${response.status} ${response.statusText}).`);
+  // Glama closed unauthenticated access to its documented MCP API on 2026-08-26.
+  // A key is sent only from the process environment and is never logged or persisted.
+  const apiKey = process.env.GLAMA_API_KEY;
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "mcp-library-provider-sync/0.1",
+      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
+    }
+  });
+  if (response.status === 401) {
+    throw new Error(
+      "Glama MCP API request failed (401 Unauthorized). Glama requires an API key for its documented MCP API since 2026-08-26. " +
+      "Create a key at https://glama.ai/settings/api-keys, store it in a local secret manager, and export it as GLAMA_API_KEY (never pass it as a CLI argument). " +
+      "The key value is never logged. API data use is governed by Glama's API Data License, which requires visible attribution and links to Glama listings when the data is displayed."
+    );
+  }
+  if (!response.ok) throw new Error(`Glama MCP API request failed (${response.status} ${response.statusText}).`);
   return parseGlamaApiPage(await response.json());
 }
 
@@ -252,6 +248,9 @@ async function syncGlama(args: ParsedArgs): Promise<void> {
 
 async function importMcpMarketSitemaps(args: ParsedArgs): Promise<void> {
   const directory = required(args, "dir");
+  if (!existsSync(directory)) {
+    throw new Error(`Directory not found: ${directory}. Download the public MCPMarket tools-N.xml sitemap files through an approved browser/export path first, then pass their directory with --dir.`);
+  }
   const names = (await readdir(directory)).filter((name) => /^tools-\d+\.xml$/i.test(name)).sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
   if (!names.length) throw new Error(`No tools-N.xml files found in ${directory}. Download the public MCPMarket sitemap files through an approved browser/export path first.`);
   const entries = [];
