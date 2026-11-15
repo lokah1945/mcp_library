@@ -6,12 +6,13 @@
 
 `mcp_library` is a bilingual, provenance-first catalog and explainable recommendation layer for Model Context Protocol servers. It unifies approved source metadata, preserves source evidence, classifies safety/compatibility, maintains reviewed local source clones, and emits **credential-free** client configuration templates.
 
-## Release status — v0.2.0
+## Release status — v0.2.1
 
 - ✅ Bilingual Next.js catalog: browse, search/filter preview, profile, compare, methodology, and local-library views.
 - ✅ Official MCP Registry adapter with cursor-ready metadata normalization.
-- ✅ **Full Glama public MCP API traversal:** 61,417 source records fetched across 615 pages in the latest live run.
-- ✅ Local library snapshot contains **61,522 unique candidates** at the latest run: 61,417 Glama, 101 Official Registry, and 4 curated provider records.
+- ✅ Glama MCP API traversal with key-authenticated access: 61,417 source records fetched across 615 pages in the last completed run (28 July 2026, while the API was still public).
+- ⚠️ Glama closed unauthenticated API access on 2026-08-26. `providers:sync-glama` now requires `GLAMA_API_KEY` from the process environment (see `.env.example`).
+- ✅ Local library snapshot contained **61,522 unique candidates** at the last completed run: 61,417 Glama, 101 Official Registry, and 4 curated provider records.
 - ✅ Curated free-ready packs for Web & Research, Thinking & Memory, and Developer workflows.
 - ✅ Local source clones tracked for GitHub MCP Server, Playwright MCP, and Context7.
 - ✅ Safe client-template exporter for Claude Desktop, Cursor, and VS Code.
@@ -26,9 +27,11 @@
 | Source | Mode | Latest validated result | Credential required |
 |---|---|---:|---|
 | [Official MCP Registry](https://registry.modelcontextprotocol.io/) | Public REST metadata sync | 101 local records | No |
-| [Glama](https://glama.ai/mcp/servers) | Public API cursor traversal | 61,417 records / 615 pages | No |
+| [Glama](https://glama.ai/mcp/servers) | Documented REST API (`Authorization: Bearer`); key required since 2026-08-26 | 61,417 records / 615 pages (last completed run, 28 July 2026) | Yes — `GLAMA_API_KEY` (process environment only) |
 | Provider-owned repositories | Curated source + GitHub enrichment / local clone tracking | 4 catalog records, 3 clones | No for public metadata |
 | [MCPMarket](https://mcpmarket.com/) | Public sitemap importer | Awaiting provider-approved sitemap export/import | No for sitemap import |
+
+Glama API data is governed by Glama's API Data License: visible attribution to Glama and links to each record's Glama listing are required wherever that data is displayed.
 
 See [live results](docs/LIVE_TEST_REPORT.md) and [official documentation index](docs/PROVIDER_DOCUMENTATION_INDEX.md) for timestamps, source boundaries, and integration evidence.
 
@@ -53,7 +56,7 @@ npm test
 npm run build
 ```
 
-Latest validation: **0 audit vulnerabilities, 19 tests passed, production build passed**.
+Latest validation: **0 audit vulnerabilities, 24 tests passed, production build passed**.
 
 ## Workspace layout
 
@@ -80,27 +83,31 @@ npm run providers:sync -- --limit 100
 npm run providers:check -- --search playwright --limit 20
 ```
 
-### Glama — public cursor API
+### Glama — documented MCP API (key required)
+
+Glama closed unauthenticated access to its documented MCP API on 2026-08-26. Create an API key at <https://glama.ai/settings/api-keys>, keep it in a local secret manager, and export it as `GLAMA_API_KEY` before syncing. The key is read only from the process environment, is never passed as a CLI argument, and is never logged.
 
 ```bash
 # Read-only one-page check (100 records)
-npm run providers:sync-glama -- --check --first 100
+GLAMA_API_KEY=... npm run providers:sync-glama -- --check --first 100
 
 # Persist one bounded page
-npm run providers:sync-glama -- --first 100
+GLAMA_API_KEY=... npm run providers:sync-glama -- --first 100
 
-# Full public API traversal; use persistent storage in production
-npm run providers:sync-glama -- --all --first 100
+# Full API traversal; use persistent storage in production
+GLAMA_API_KEY=... npm run providers:sync-glama -- --all --first 100
 
 # Resume from the persisted Glama cursor in bounded batches
-npm run providers:sync-glama -- --resume --all --max-pages 25
+GLAMA_API_KEY=... npm run providers:sync-glama -- --resume --all --max-pages 25
 ```
+
+The public JSON-LD directory mode (`--directory-url`) remains available without a key for pages that still embed it.
 
 ### MCPMarket — public sitemap importer
 
 MCPMarket's documented API token flow does not currently publish a catalog list/search/pagination contract. The project does **not** bypass its Vercel Security Checkpoint or protected API.
 
-Download public `tools-0.xml` through `tools-7.xml` from the official sitemap via an approved browser/export path, place them under a local ignored directory, then import discovery metadata:
+Download the public `tools-0.xml` through `tools-12.xml` files (check the live sitemap index at <https://mcpmarket.com/sitemap.xml> for the current list; it contained 13 `tools-N.xml` files at the last check) from the official sitemap via an approved browser/export path, place them under a local ignored directory, then import discovery metadata:
 
 ```bash
 # Status only; no credential read
@@ -171,4 +178,4 @@ Read [SECURITY.md](SECURITY.md), [free/local-library operations](docs/FREE_MCP_L
 
 ## License
 
-License selection remains pending. Do not publish a remote repository until the project owner selects a license and confirms source-attribution obligations.
+No license has been selected yet, so the public repository currently grants no redistribution or reuse rights beyond defaults. Select a license and document source-attribution obligations (including Glama's API Data License for displayed Glama data) before others depend on this project.
